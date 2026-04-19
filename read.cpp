@@ -2,6 +2,7 @@
 #include <vector>
 #include <iterator>
 #include <iostream>
+#include <sstream>
 
 int main(int argc, char *argv[]) {
     std::string filename;
@@ -20,10 +21,13 @@ int main(int argc, char *argv[]) {
         (std::istreambuf_iterator<char>())
     );
 
+    std::ostringstream oss;
+
     // Format characters to hexadecimal
     for (unsigned char b : bytes) {
-        std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(b) << " ";
+        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(b) << " ";
     }
+    std::string hex = oss.str();
     std::cout << std::dec << std::endl;
 
     file.close();
