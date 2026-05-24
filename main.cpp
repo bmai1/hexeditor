@@ -73,14 +73,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (!SDL_CreateWindowAndRenderer("Hex Editor", 640, 480, SDL_WINDOW_RESIZABLE, &window, &renderer)) {
+    if (!SDL_CreateWindowAndRenderer("Hex Editor", 800, 480, SDL_WINDOW_RESIZABLE, &window, &renderer)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't create window and renderer: %s", SDL_GetError());
         return 1;
     }
 
     // Init font
     TTF_Init();
-    TTF_Font* font = TTF_OpenFont("Roboto.ttf", 16);
+    TTF_Font* font = TTF_OpenFont("SpaceMono.ttf", 16);
 
     // Prompt for binary file
     SDL_ShowOpenFileDialog(callback, NULL, window, NULL, 0, NULL, false);
@@ -101,31 +101,43 @@ int main(int argc, char* argv[]) {
         SDL_RenderClear(renderer);
 
         if (!bytes.empty()) {
-        SDL_Color color = {255, 255, 255, 255};
+            SDL_Color color = {255, 255, 255, 255};
 
-        int line_height = 16;
-        size_t total_rows = (bytes.size() + 15) / 16;
+            int line_height = 16;
+            size_t total_rows = (bytes.size() + 15) / 16;
 
-        for (size_t row = 0; row < total_rows && row < 20; ++row) {
-            std::string line = format_row(bytes, row * 16);
-            const char* lp = line.c_str();
+            for (size_t row = 0; row <= total_rows && row < 20; ++row) {
+                std::string line;
 
-            SDL_Surface* surface = TTF_RenderText_Solid(font, lp, strlen(lp), color);
-            SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+                if (row == 0) {
+                    std::ostringstream data_label;
+                    data_label << std::left
+                               << std::setw(10) << "Address"
+                               << std::setw(49) << "Hexadecimal"
+                               << "ASCII";
+                    line = data_label.str();
+                }
+                else {
+                    line = format_row(bytes, (row - 1) * 16);
+                }
+                const char* lp = line.c_str();
 
-            SDL_FRect dst = {
-                10.0f,
-                10.0f + row * line_height,
-                (float)surface->w,
-                (float)surface->h
-            };
+                SDL_Surface* surface = TTF_RenderText_Solid(font, lp, 0, color);
+                SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
 
-            SDL_RenderTexture(renderer, texture, NULL, &dst);
+                SDL_FRect dst = {
+                    10.0f,
+                    10.0f + row * line_height,
+                    (float)surface->w,
+                    (float)surface->h
+                };
 
-            SDL_DestroyTexture(texture);
-            SDL_DestroySurface(surface);
+                SDL_RenderTexture(renderer, texture, NULL, &dst);
+
+                SDL_DestroyTexture(texture);
+                SDL_DestroySurface(surface);
+            }
         }
-    }
 
         SDL_RenderPresent(renderer);
     }
