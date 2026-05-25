@@ -14,6 +14,5 @@ add_executable(hexeditor
 
 target_link_libraries(hexeditor
     PRIVATE
-    SDL3::SDL3
     SDL3_ttf::SDL3_ttf
 )
