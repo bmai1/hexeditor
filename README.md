@@ -1,6 +1,9 @@
-# Currently in development
+# Hex Editor
 
 A simple hex editor with SDL3 to inspect and modify binary files.
+
+<img width="960" height="540" alt="demo1" src="https://github.com/user-attachments/assets/2fc95558-33be-475c-b0a1-9841a9efef81" />
+
 ## Requirements
 
 - CMake
@@ -55,4 +58,5 @@ Run:
 .\build\Debug\hexeditor.exe
 ```
 
-<img width="752" height="624" alt="Screenshot 2026-05-23 at 4 38 04 PM" src="https://github.com/user-attachments/assets/bb0ba570-c4be-44a4-a73f-893c1117f66a" />
+
+
