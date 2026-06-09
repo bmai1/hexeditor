@@ -12,6 +12,9 @@ std::vector<unsigned char> bytes; // A list of bytes from input binary file
 std::unordered_set<int> edited_bytes; // A set of indices where bytes have been modified (for rendering)
 std::string file_path;
 
+size_t scroll_offset = 0;
+size_t visible_rows = 20;
+
 // Set file selected from dialog upon opening
 static void SDLCALL callback(void* userdata, const char* const* filelist, int filter)
 {
@@ -36,7 +39,7 @@ std::string format_row(const std::vector<unsigned char>& bytes, size_t offset) {
     std::ostringstream oss;
 
     // Offset (8 hex digits)
-    oss << std::setw(8) << std::setfill('0') << std::hex << offset << "  ";
+    oss << std::setw(8) << std::setfill('0') << std::hex << std::uppercase << offset << "  ";
 
     // Hex bytes (16 per row)
     for (int i = 0; i < 16; ++i) {
@@ -84,7 +87,7 @@ size_t get_byte_index(int mouse_x, int mouse_y)
     if (row < 0 || col < 0 || col >= 16)
         return (size_t)-1;
 
-    size_t index = row * 16 + col;
+    size_t index = (row + scroll_offset) * 16 + col;
 
     return index;
 }
@@ -173,6 +176,7 @@ int main(int argc, char* argv[]) {
             if (event.type == SDL_EVENT_QUIT) {
                 running = false;
             }
+            // Handle mouse clicks
             else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
                 if (event.button.button == SDL_BUTTON_LEFT) {
                     float click_x = event.button.x;
@@ -219,9 +223,9 @@ int main(int argc, char* argv[]) {
                             } 
 
                             // (If in cursor mode and left click new byte, nothing happens besides the rectangles being updated)
-                            cursor_rect = {(float) 110+30*(byte_index%16), (float) 31+16*(byte_index/16), 20, 14};
-                            edit_rect   = {(float) 110+30*(byte_index%16), (float) 30+16*(byte_index/16), 20, 16};
-                            ascii_rect  = {(float) 600+10*(byte_index%16), (float) 31+16*(byte_index/16), 10, 14};
+                            cursor_rect = {(float) 110+30*(byte_index%16), (float)(31 + 16*((int)(byte_index/16) - (int)scroll_offset)), 20, 14};
+                            edit_rect   = {(float) 110+30*(byte_index%16), (float)(30 + 16*((int)(byte_index/16) - (int)scroll_offset)), 20, 16};
+                            ascii_rect  = {(float) 600+10*(byte_index%16), (float)(31 + 16*((int)(byte_index/16) - (int)scroll_offset)), 10, 14};
                             
                             prev_byte_index = byte_index;
                         }
@@ -229,6 +233,21 @@ int main(int argc, char* argv[]) {
                 }
                 else {
                     SDL_Log("Mouse right-clicked");
+                }
+            }
+            // Handle scrolling
+            else if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+                // std::string wheel_y = std::to_string(event.wheel.y);
+                // SDL_Log("%s", wheel_y.c_str());
+                size_t total_rows = (bytes.size() + 15) / 16;
+
+                if (event.wheel.y < 0) { // scroll down
+                    if (scroll_offset + visible_rows < total_rows)
+                        scroll_offset++;
+                }
+                else if (event.wheel.y > 0) { // scroll up
+                    if (scroll_offset > 0)
+                        scroll_offset--;
                 }
             }
             // Handle keyboard input for editing bytes
@@ -243,12 +262,13 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
-            else if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_BACKSPACE) {
+            // Handle backspace when editing
+            else if (event.type == SDL_EVENT_KEY_DOWN && show_edit_rect && event.key.key == SDLK_BACKSPACE) {
                 if (edit_byte.size() > 0) {
                     edit_byte.pop_back();
                 }
             }
-            // Handle keyboard inputs
+            // Handle other keyboard inputs (byte editing, movement)
             else if (event.type == SDL_EVENT_KEY_DOWN) {
                 bool edited = false;
 
@@ -258,7 +278,7 @@ int main(int argc, char* argv[]) {
                         show_cursor_rect = false;
                         show_edit_rect = true;
                         SDL_StartTextInput(window);
-                        edit_rect = {(float) 110+30*(byte_index%16), (float) 30+16*(byte_index/16), 20, 16};
+                        edit_rect = {(float) 110+30*(byte_index%16), (float)(30 + 16*((int)(byte_index/16) - (int)scroll_offset)), 20, 16};
                     }
                     else if (show_edit_rect) {
                         if (byte_index >= 0 && byte_index < bytes.size()) {
@@ -274,6 +294,20 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 // Handle arrow key cursor movement (note: does not update byte array)
+                else if (event.key.key == SDLK_UP && (show_cursor_rect || show_edit_rect) && byte_index >= 16 && byte_index < bytes.size()) {
+                    byte_index -= 16;
+                    edited = true;
+                }
+                else if (event.key.key == SDLK_DOWN && (show_cursor_rect || show_edit_rect) && byte_index >= 0 && byte_index < bytes.size() - 16) {
+                    // Need to fix a bug where you can go down past editor box if there is more lines not visible below
+
+                    // size_t current_row = byte_index / 16;
+                    // if (current_row >= scroll_offset + visible_rows) {
+                    //     scroll_offset++;
+                    // }
+                    byte_index += 16;
+                    edited = true;
+                }
                 else if (event.key.key == SDLK_LEFT && (show_cursor_rect || show_edit_rect) && byte_index > 0 && byte_index < bytes.size()) {
                     byte_index--;
                     edited = true;
@@ -286,9 +320,9 @@ int main(int argc, char* argv[]) {
                 // Re-render cursor rectangles
                 if (byte_index != -1) {
                     if (edited) edit_byte = index_to_hex(byte_index);
-                    edit_rect   = {(float) 110+30*(byte_index%16), (float) 30+16*(byte_index/16), 20, 16};
-                    cursor_rect = {(float) 110+30*(byte_index%16), (float) 31+16*(byte_index/16), 20, 14};
-                    ascii_rect  = {(float) 600+10*(byte_index%16), (float) 31+16*(byte_index/16), 10, 14};
+                    edit_rect   = {(float) 110+30*(byte_index%16), (float)(30 + 16*((int)(byte_index/16) - (int)scroll_offset)), 20, 16};
+                    cursor_rect = {(float) 110+30*(byte_index%16), (float)(31 + 16*((int)(byte_index/16) - (int)scroll_offset)), 20, 14};
+                    ascii_rect  = {(float) 600+10*(byte_index%16), (float)(31 + 16*((int)(byte_index/16) - (int)scroll_offset)), 10, 14};
                 }
             }
         }
@@ -298,8 +332,12 @@ int main(int argc, char* argv[]) {
 
         // Render red highlights underneath edited bytes
         for (int edited_byte_index : edited_bytes) {
-            SDL_FRect edited_rect = {(float) 110+30*(edited_byte_index%16), (float) 31+16*(edited_byte_index/16), 20, 14};
-            SDL_FRect edited_ascii_rect  = {(float) 600+10*(edited_byte_index%16), (float) 31+16*(edited_byte_index/16), 10, 14};
+            int screen_row = (edited_byte_index / 16) - scroll_offset;
+            if (screen_row < 0 || screen_row >= (int) visible_rows) {
+                continue;
+            }
+            SDL_FRect edited_rect = {(float) 110+30*(edited_byte_index%16), (float) 31+16*screen_row, 20, 14};
+            SDL_FRect edited_ascii_rect  = {(float) 600+10*(edited_byte_index%16), (float) 31+16*screen_row, 10, 14};
             SDL_SetRenderDrawColor(renderer, 255, 0, 0, 192);
             SDL_RenderFillRect(renderer, &edited_rect);
             SDL_RenderFillRect(renderer, &edited_ascii_rect);
@@ -307,34 +345,58 @@ int main(int argc, char* argv[]) {
 
         // Render bytes as lines
         if (!bytes.empty()) {
-            int line_height = 16;
-            size_t total_rows = (bytes.size() + 15) / 16;
+            constexpr int line_height = 16;
+            constexpr int header_y = 10;
 
-            for (size_t row = 0; row <= total_rows && row < 20; ++row) {
-                std::string line;
+            // Render header (always visible)
+            {
+                std::ostringstream data_label;
+                data_label << std::left
+                        << std::setw(10) << "Address"
+                        << std::setw(49) << "Hexadecimal"
+                        << "ASCII";
 
-                if (row == 0) {
-                    std::ostringstream data_label;
-                    data_label << std::left
-                               << std::setw(10) << "Address"
-                               << std::setw(49) << "Hexadecimal"
-                               << "ASCII";
-                    line = data_label.str();
-                }
-                else {
-                    line = format_row(bytes, (row - 1) * 16);
-                }
-                const char* lp = line.c_str();
+                SDL_Surface* surface =
+                    TTF_RenderText_Solid(font, data_label.str().c_str(), 0, white);
 
-                SDL_Surface* surface = TTF_RenderText_Solid(font, lp, 0, white);
-                SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+                SDL_Texture* texture =
+                    SDL_CreateTextureFromSurface(renderer, surface);
 
-                // For text location/proper sizing
                 SDL_FRect dst = {
                     10.0f,
-                    10.0f + row * line_height,
-                    (float) surface->w,
-                    (float) surface->h
+                    (float)header_y,
+                    (float)surface->w,
+                    (float)surface->h
+                };
+
+                SDL_RenderTexture(renderer, texture, NULL, &dst);
+
+                SDL_DestroyTexture(texture);
+                SDL_DestroySurface(surface);
+            }
+
+            size_t total_rows = (bytes.size() + 15) / 16;
+
+            // Render visible data rows
+            for (size_t i = 0; i < visible_rows; ++i) {
+                size_t row = scroll_offset + i;
+
+                if (row >= total_rows)
+                    break;
+
+                std::string line = format_row(bytes, row * 16);
+
+                SDL_Surface* surface =
+                    TTF_RenderText_Solid(font, line.c_str(), 0, white);
+
+                SDL_Texture* texture =
+                    SDL_CreateTextureFromSurface(renderer, surface);
+
+                SDL_FRect dst = {
+                    10.0f,
+                    (float)(header_y + line_height + i * line_height),
+                    (float)surface->w,
+                    (float)surface->h
                 };
 
                 SDL_RenderTexture(renderer, texture, NULL, &dst);
