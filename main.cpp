@@ -142,7 +142,13 @@ int main(int argc, char* argv[]) {
     SDL_FRect cursor_rect;
     SDL_FRect ascii_rect;
 
-    // Save file button in bottom-right
+    // Open file button
+    SDL_FRect open_file_rect = {0, 0, 100, 20};
+    SDL_Surface* open_file_surface = TTF_RenderText_Solid(font, "Open File", 0, white);
+    SDL_Texture* open_file_texture = SDL_CreateTextureFromSurface(renderer, open_file_surface);
+    SDL_DestroySurface(open_file_surface);
+
+    // Save file button
     SDL_FRect save_file_rect = {0, 0, 100, 20};
     SDL_Surface* save_file_surface = TTF_RenderText_Solid(font, "Save File", 0, white);
     SDL_Texture* save_file_texture = SDL_CreateTextureFromSurface(renderer, save_file_surface);
@@ -176,6 +182,11 @@ int main(int argc, char* argv[]) {
                     if (click_x > width - 120 && click_x < width - 20 && click_y > height - 40 && click_y < height - 20) {
                         SDL_Log("Saved file");
                         save_file(file_path, bytes);
+                    }
+                    // Clicked open file button
+                    else if (click_x > width - 120 && click_x < width - 20 && click_y > height - 70 && click_y < height - 50) {
+                        SDL_Log("Opened file");
+                        SDL_ShowOpenFileDialog(callback, NULL, window, NULL, 0, NULL, false);
                     }
                     else {
                         // Handle highlighting bytes based on left clicks
@@ -358,20 +369,27 @@ int main(int argc, char* argv[]) {
             SDL_RenderTexture(renderer, edit_byte_texture, NULL, &dst);
         }
 
-        // Save button
+        // Render buttons in bottom right
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 64);
+        // Open new file button
+        open_file_rect.x = width - 120;
+        open_file_rect.y = height - 70;
+        SDL_RenderFillRect(renderer, &open_file_rect);
+        SDL_FRect dst = { open_file_rect.x + 10, open_file_rect.y - 3, 80, 24 };
+        SDL_RenderTexture(renderer, open_file_texture, NULL, &dst);
+
+        // Save file button
         save_file_rect.x = width - 120;
         save_file_rect.y = height - 40;
         SDL_RenderFillRect(renderer, &save_file_rect);
-
-        // Save button label
-        SDL_FRect dst = { save_file_rect.x + 10, save_file_rect.y - 3, 80, 24 };
+        dst = { save_file_rect.x + 10, save_file_rect.y - 3, 80, 24 };
         SDL_RenderTexture(renderer, save_file_texture, NULL, &dst);
 
         SDL_RenderPresent(renderer);
     }
 
     SDL_DestroyTexture(edit_byte_texture);
+    SDL_DestroyTexture(open_file_texture);
     SDL_DestroyTexture(save_file_texture);
 
     TTF_CloseFont(font);
