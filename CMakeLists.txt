@@ -10,6 +10,7 @@ find_package(SDL3_ttf CONFIG REQUIRED)
 
 add_executable(hexeditor
     main.cpp
+    editor.cpp
 )
 
 target_link_libraries(hexeditor
