@@ -10,30 +10,34 @@
 #include <sstream>
 #include <cctype>
 
-std::vector<unsigned char> bytes; // A list of bytes from input binary file
-std::unordered_set<int> edited_bytes; // A set of indices where bytes have been modified (for rendering)
-std::string file_path;
-
-size_t scroll_offset = 0;
-size_t visible_rows = 20;
-
 // Set file selected from dialog upon opening
-void SDLCALL callback(void* userdata, const char* const* filelist, int filter)
+void SDLCALL open_file_callback(void* userdata, const char* const* filelist, int filter)
 {
+    EditorState* editor = static_cast<EditorState*>(userdata);
+
     if (!filelist) {
         SDL_Log("Error: %s", SDL_GetError());
         return;
     }
-
     if (!*filelist) {
         SDL_Log("No file selected.");
         return;
     }
 
-    file_path = *filelist;
+    editor->file_path = *filelist;
 
     std::ifstream file(*filelist, std::ios::binary);
-    bytes.assign((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
+    editor->bytes.assign((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
+
+    // Reset cursor/scroll/edit state for the newly loaded file
+    editor->byte_index = (size_t)-1;
+    editor->prev_byte_index = (size_t)-1;
+    editor->scroll_offset = 0;
+    editor->edited_bytes.clear();
+    editor->show_cursor_rect = false;
+    editor->show_edit_rect = false;
+
+    SDL_Log("Loaded file: %s (%zu bytes)", editor->file_path.c_str(), editor->bytes.size());
 }
 
 // Format bytes into Offset Hex ASCII string
@@ -56,7 +60,6 @@ std::string format_row(const std::vector<unsigned char>& bytes, size_t offset) {
             oss << "   ";
         }
     }
-
     oss << " ";
 
     // ASCII
@@ -70,16 +73,14 @@ std::string format_row(const std::vector<unsigned char>& bytes, size_t offset) {
             }
         }
     }
-
     return oss.str();
 }
 
 // Get byte index based on where the mouse clicks on the window
-size_t get_byte_index(int mouse_x, int mouse_y)
+size_t get_byte_index(EditorState& editor, int mouse_x, int mouse_y)
 {
     constexpr int TOP_OFFSET = 34;
     constexpr int ROW_H = 16;
-
     constexpr int HEX_START_X = 110;
     constexpr int HEX_CELL_W = 30;
 
@@ -89,20 +90,17 @@ size_t get_byte_index(int mouse_x, int mouse_y)
     if (row < 0 || col < 0 || col >= 16)
         return (size_t)-1;
 
-    size_t index = (row + scroll_offset) * 16 + col;
-
+    size_t index = (row + editor.scroll_offset) * 16 + col;
     return index;
 }
 
 // Convert byte_index to hex string
-std::string index_to_hex(int byte_index) {
-    unsigned char b = bytes[byte_index];
-
+std::string index_to_hex(EditorState& editor, size_t byte_index) {
+    unsigned char b = editor.bytes[byte_index];
     std::ostringstream oss;
     oss << std::hex << std::uppercase << std::setw(2)
         << std::setfill('0')
         << (int)b;
-
     return oss.str();
 }
 
@@ -110,7 +108,6 @@ bool save_file(const std::string& file_path, const std::vector<unsigned char>& b
 {
     std::ofstream file(file_path, std::ios::binary);
     if (!file) return false;
-
     file.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
     return true;
 }
