@@ -8,6 +8,7 @@
 #include <fstream>
 #include <vector>
 #include <unordered_set>
+#include <iomanip>
  
 #include "editor.h"
  
@@ -298,6 +299,9 @@ int main(int argc, char* argv[]) {
     // Init font
     TTF_Init();
     editor.font = TTF_OpenFont("SpaceMono.ttf", 16);
+    if (!editor.font) {
+        SDL_Log("Failed to load font: %s", SDL_GetError());
+    }
  
     // Prompt for binary file
     SDL_ShowOpenFileDialog(open_file_callback, &editor, editor.window, NULL, 0, NULL, false);
